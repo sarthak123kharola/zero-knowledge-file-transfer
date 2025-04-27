@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Secure File Upload & Download</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+</head>
+
+<body>
+
+    <h1>🔐 Secure File Encryption and Upload</h1>
+
+    <!-- Upload Section -->
+    <input type="file" id="fileInput"><br><br>
+    <input type="password" id="password" placeholder="Enter encryption password"><br><br>
+    <button onclick="import('./encryption.js').then(m => m.encryptAndUpload())">Encrypt & Upload</button>
+    <br><br>
+    <progress id="progressBar" value="0" max="100" style="width: 300px;"></progress>
+    <p id="status"></p>
+
+    <hr>
+
+    <!-- Download & Decrypt Section -->
+    <h2>🔓 Download and Decrypt File</h2>
+    <input type="text" id="downloadFileName" placeholder="Enter encrypted file name (e.g., myfile.enc)"><br><br>
+    <input type="password" id="decryptPassword" placeholder="Enter decryption password"><br><br>
+    <button onclick="decryptFile()">Download & Decrypt</button>
+    <p id="decryptStatus"></p>
+
+
+</body>
+
+
+<script>
+    async function decryptFile() {
+        const filename = document.getElementById("downloadFileName").value;
+        const password = document.getElementById("decryptPassword").value;
+        const status = document.getElementById("decryptStatus");
+    
+        if (!filename || !password) {
+            status.textContent = "❗Please provide file name and password.";
+            return;
+        }
+    
+        status.textContent = "🔄 Decrypting... Please wait...";
+        try {
+            let i = 0;
+            const combinedChunks = [];
+    
+            while (true) {
+                const partFileName = getFileName(filename, i);
+    
+                const res = await fetch(`/download/${partFileName}`);
+                if (!res.ok) {
+                    if (i === 0) {
+                        throw new Error("❗ No file parts found on server.");
+                    }
+                    break; // no more parts
+                }
+    
+                const encryptedBase64 = await res.text();
+    
+                const decrypted = CryptoJS.AES.decrypt(encryptedBase64, password);
+                if (!decrypted.sigBytes || decrypted.sigBytes <= 0) {
+                    throw new Error("❗ Incorrect password or corrupted part.");
+                }
+    
+                const byteArray = new Uint8Array(decrypted.sigBytes);
+                for (let j = 0; j < decrypted.sigBytes; j++) {
+                    byteArray[j] = (decrypted.words[Math.floor(j / 4)] >>> (24 - (j % 4) * 8)) & 0xFF;
+                }
+    
+                combinedChunks.push(byteArray);
+                i++;
+            }
+    
+            if (combinedChunks.length === 0) {
+                throw new Error("❗ No parts downloaded.");
+            }
+    
+            // Combine
+            const totalLength = combinedChunks.reduce((sum, chunk) => sum + chunk.length, 0);
+            const combined = new Uint8Array(totalLength);
+            let offset = 0;
+            for (const chunk of combinedChunks) {
+                combined.set(chunk, offset);
+                offset += chunk.length;
+            }
+    
+            const blob = new Blob([combined]);
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `${filename}`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+    
+            status.textContent = `✅ File ${filename} downloaded successfully.`;
+        } catch (err) {
+            console.error(err);
+            status.textContent = err.message || "❗ Error during decryption or download.";
+        }
+    }
+    
+    function getFileName(filename, i) {
+        let temp = "";
+        let k = 0;
+        while (k < filename.length) {
+            if (filename[k] === '.') {
+                temp += `.part${i}.`;
+            } else {
+                temp += filename[k];
+            }
+            k++;
+        }
+        return temp;
+    }
+    </script>
+    
+
+</html>
+
+
+
+

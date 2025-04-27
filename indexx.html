@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Secure File Upload & Download</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+</head>
+
+<body>
+
+    <h1>🔐 Secure File Encryption and Upload</h1>
+
+    <!-- Upload Section -->
+    <input type="file" id="fileInput"><br><br>
+    <input type="password" id="password" placeholder="Enter encryption password"><br><br>
+    <button onclick="import('./encryption.js').then(m => m.encryptAndUpload())">Encrypt & Upload</button>
+    <br><br>
+    <progress id="progressBar" value="0" max="100" style="width: 300px;"></progress>
+    <p id="status"></p>
+
+    <hr>
+
+    <!-- Download & Decrypt Section -->
+    <h2>🔓 Download and Decrypt File</h2>
+    <input type="text" id="downloadFileName" placeholder="Enter encrypted file name (e.g., myfile.enc)"><br><br>
+    <input type="password" id="decryptPassword" placeholder="Enter decryption password"><br><br>
+    <button onclick="decryptFile()">Download & Decrypt</button>
+    <p id="decryptStatus"></p>
+
+    <script>
+        async function decryptFile() {
+            const filename = document.getElementById("downloadFileName").value;
+            const password = document.getElementById("decryptPassword").value;
+            const status = document.getElementById("decryptStatus");
+
+            if (!filename || !password) {
+                status.textContent = "❗ Please provide file name and password.";
+                return;
+            }
+
+            try {
+                // Download encrypted content as text (Base64 string)
+                const res = await fetch(`/download/${filename}`);
+                if (!res.ok) throw new Error("File not found on server.");
+                const encryptedBase64 = await res.text();
+
+                // Decrypt it from Base64
+                const decrypted = CryptoJS.AES.decrypt(encryptedBase64, password);
+
+                // Convert to bytes
+                const decryptedWords = decrypted.words;
+                const decryptedSigBytes = decrypted.sigBytes;
+                const byteArray = new Uint8Array(decryptedSigBytes);
+                for (let i = 0; i < decryptedSigBytes; i++) {
+                    byteArray[i] = (decryptedWords[i >>> 2] >>> (24 - (i % 4) * 8)) & 0xff;
+                }
+
+                // Guess file type based on extension
+                let mimeType = "application/octet-stream";
+
+                // Save the file with correct type
+                const blob = new Blob([byteArray], { type: mimeType });
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.download = filename.replace('.enc', '');
+                link.click();
+
+                status.textContent = "✅ Decryption successful! File downloaded.";
+            } catch (err) {
+                console.error(err);
+                status.textContent = "❌ Decryption failed.";
+            }
+        }
+    </script>
+</body>
+
+</html>
