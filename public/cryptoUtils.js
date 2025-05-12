@@ -1,6 +1,3 @@
-// cryptoUtils.js
-
-// Encrypt a binary chunk with AES
 function encryptChunk(arrayBuffer, password) {
   const wordArray = CryptoJS.lib.WordArray.create(arrayBuffer);
   const encrypted = CryptoJS.AES.encrypt(wordArray, password).toString();

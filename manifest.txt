@@ -1,0 +1,5 @@
+profile picture.jpg : image/jpeg
+blur.png : image/png
+andriod.mp4 : video/mp4
+1.html : text/html
+andriod.mp4 : video/mp4
